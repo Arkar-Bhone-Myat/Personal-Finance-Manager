@@ -20,16 +20,13 @@ def load_json(filename: str, default: Any) -> Any:
 
 
 def save_json(filename: str, data: Any) -> None:
-    """Serialize and write Python data to a JSON file in the data directory.
 
-    Creates the ``data/`` directory and target file if needed, then overwrites
-    ``data/<filename>`` with ``data`` formatted as readable JSON.
+    path = Path(filename)
 
-    Args:
-        filename: Name of the JSON file inside ``data/``.
-        data: JSON-serializable object (``list`` or ``dict``) to write.
-    """
-    pass
+    with path.open("w", encoding="utf-8") as file:
+        json.dump(data, file, indent=2)
+    
+    
 
 
 # ---------------------------------------------------------------------------

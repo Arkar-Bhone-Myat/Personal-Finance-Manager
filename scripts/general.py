@@ -15,9 +15,9 @@ def get_next_tx_id(data: list[dict], prefix: str = "tx", width: int = 4) -> str:
     return f"{prefix}_{max_num + 1:0{width}d}"
 
 def get_current_date_yy_mm_dd() -> str:
-    """Return the current local date formatted as 'yy-mm--dd'."""
+    """Return the current local date formatted as 'yy-mm-dd'."""
     now = datetime.now()
-    return f"{now:%y-%m}--{now:%d}"
+    return f"{now:%y-%m-%d}"
 
 def has_non_empty_string_values(data: dict) -> bool:
     """Return False if any value in the dictionary is an empty string, else True."""

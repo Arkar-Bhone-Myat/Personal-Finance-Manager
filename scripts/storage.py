@@ -8,9 +8,11 @@ from pathlib import Path
 import json
 from typing import Any
 
+DATA_DIR = Path("data")
+
 
 def load_json(filename: str, default: Any) -> Any:
-    path = Path(filename)
+    path = DATA_DIR / filename
 
     try:
         with path.open("r" , encoding="utf-8") as file:
@@ -21,7 +23,7 @@ def load_json(filename: str, default: Any) -> Any:
 
 def save_json(filename: str, data: Any) -> None:
 
-    path = Path(filename)
+    path = DATA_DIR / filename
 
     with path.open("w", encoding="utf-8") as file:
         json.dump(data, file, indent=2)
@@ -36,12 +38,12 @@ def save_json(filename: str, data: Any) -> None:
 
 def get_transactions() -> list[dict[str, Any]]:
 
-    return load_json("data/transactions.json", [])
+    return load_json(DATA_DIR / "transactions.json", [])
 
 
 def save_transactions(transactions: list[dict[str, Any]]) -> None:
 
-    save_json("data/transactions.json", transactions)
+    save_json(DATA_DIR / "transactions.json", transactions)
  
 
 
@@ -49,7 +51,7 @@ def add_transaction(transaction: dict[str, Any]) -> None:
 
     current_transactions = get_transactions()
     current_transactions.append(transaction)
-    save_json("data/transactions.json",current_transactions)
+    save_json(DATA_DIR / "transactions.json",current_transactions)
 
 
 
@@ -60,7 +62,7 @@ def delete_transaction(tx_id: str) -> bool:
     for transaction in current_transactions:
         if transaction["id"] == tx_id:
             current_transactions.remove(transaction)
-            save_transactions(current_transactions)
+            save_json(DATA_DIR / "transactions.json", current_transactions)
             return True
         
     return False
@@ -152,4 +154,7 @@ def save_recurring_items(items: list[dict[str, Any]]) -> None:
     Args:
         items: Full list of recurring item dictionaries to persist.
     """
+    pass
+
+if __name__ == "__main__":
     pass

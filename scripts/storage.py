@@ -35,50 +35,37 @@ def save_json(filename: str, data: Any) -> None:
 
 
 def get_transactions() -> list[dict[str, Any]]:
-    """Load and return all transaction records from ``transactions.json``.
 
-    Returns:
-        A list of transaction dictionaries, defaulting to ``[]`` if missing.
-    """
-    pass
+    return load_json("data/transactions.json", [])
 
 
 def save_transactions(transactions: list[dict[str, Any]]) -> None:
-    """Overwrite ``transactions.json`` with the provided transaction list.
 
-    Args:
-        transactions: Full list of transaction dictionaries to persist.
-    """
-    pass
+    save_json("data/transactions.json", transactions)
+ 
 
 
 def add_transaction(transaction: dict[str, Any]) -> None:
-    """Append a single transaction record and save ``transactions.json``.
 
-    Loads existing transactions, appends ``transaction`` to the list, and
-    writes the updated list back to ``transactions.json``.
+    current_transactions = get_transactions()
+    current_transactions.append(transaction)
+    save_json("data/transactions.json",current_transactions)
 
-    Args:
-        transaction: Transaction dictionary containing ``id``, ``merchant``,
-            ``category``, ``date`` (``YYYY-MM-DD``), ``amount`` (``>= 0``), and
-            ``type`` (``"income"`` or ``"expense"``).
-    """
-    pass
 
 
 def delete_transaction(tx_id: str) -> bool:
-    """Remove a transaction by ID and save ``transactions.json``.
 
-    Loads existing transactions, filters out the record matching ``tx_id``,
-    and writes the remaining list back to ``transactions.json``.
+    current_transactions = get_transactions()
 
-    Args:
-        tx_id: Unique identifier of the transaction to remove.
+    for transaction in current_transactions:
+        if transaction["id"] == tx_id:
+            current_transactions.remove(transaction)
+            save_transactions(current_transactions)
+            return True
+        
+    return False
 
-    Returns:
-        ``True`` if a matching transaction was removed, ``False`` otherwise.
-    """
-    pass
+
 
 
 # ---------------------------------------------------------------------------

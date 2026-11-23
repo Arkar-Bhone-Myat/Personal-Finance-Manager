@@ -4,25 +4,19 @@ This module defines the function signatures and docstrings for reading and
 writing transaction, savings goal, budget, and recurring item records stored in
 the ``data/`` directory.
 """
-
+from pathlib import Path
+import json
 from typing import Any
 
 
 def load_json(filename: str, default: Any) -> Any:
-    """Load and parse JSON data from a file in the data directory.
+    path = Path(filename)
 
-    Opens ``data/<filename>``, parses its JSON contents, and returns the
-    resulting Python object. If the file does not exist yet, creates it with
-    ``default`` and returns ``default``.
-
-    Args:
-        filename: Name of the JSON file inside ``data/`` (e.g., ``"goals.json"``).
-        default: Fallback value returned and written if the file is missing.
-
-    Returns:
-        The parsed JSON data (typically a ``list`` or ``dict``), or ``default``.
-    """
-    pass
+    try:
+        with path.open("r" , encoding="utf-8") as file:
+            return json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return default
 
 
 def save_json(filename: str, data: Any) -> None:

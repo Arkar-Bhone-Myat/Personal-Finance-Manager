@@ -181,7 +181,7 @@ def get_budgets() -> dict[str, Any]:
         A dictionary containing ``initial_balance``, ``monthly_budget``, and
         per-category limits under ``categories``.
     """
-    pass
+    return load_json("data/budgets.json", {}) 
 
 
 def save_budgets(budgets: dict[str, Any]) -> None:
@@ -191,7 +191,8 @@ def save_budgets(budgets: dict[str, Any]) -> None:
         budgets: Budget dictionary with ``initial_balance``, ``monthly_budget``,
             and ``categories`` mapping.
     """
-    pass
+    save_json("data/budgets.json", budgets)
+    
 
 
 # ---------------------------------------------------------------------------

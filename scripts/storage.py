@@ -205,7 +205,7 @@ def get_recurring_items() -> list[dict[str, Any]]:
     Returns:
         A list of recurring item dictionaries, defaulting to ``[]`` if missing.
     """
-    pass
+    return load_json("data/recurring.json", [])
 
 
 def save_recurring_items(items: list[dict[str, Any]]) -> None:
@@ -214,4 +214,4 @@ def save_recurring_items(items: list[dict[str, Any]]) -> None:
     Args:
         items: Full list of recurring item dictionaries to persist.
     """
-    pass
+    save_json("data/recurring.json", items)

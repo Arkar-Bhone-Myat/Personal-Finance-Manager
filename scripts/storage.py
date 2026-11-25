@@ -8,6 +8,7 @@ from pathlib import Path
 import json
 from typing import Any
 
+DATA_DIR = Path("data")
 
 def load_json(filename: str, default: Any) -> Any:
     """Load JSON data from a file.
@@ -215,3 +216,8 @@ def save_recurring_items(items: list[dict[str, Any]]) -> None:
         items: Full list of recurring item dictionaries to persist.
     """
     save_json("data/recurring.json", items)
+
+
+
+if __name__ == "__main__":
+    pass

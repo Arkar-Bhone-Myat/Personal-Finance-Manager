@@ -1,6 +1,7 @@
 import math
 import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
+from CTkXYFrame import CTkXYFrame
 from tkinter import *
 from tkinter import ttk
 import storage
@@ -29,6 +30,7 @@ class Application(ctk.CTk):
 
     views: dict[str, ctk.CTkFrame] = {}
     transactions: list[dict] = []
+    current_view:View | None = None
 
     def __init__(self):
         """Initialize the main window, sidebar, and switchable views."""
@@ -38,6 +40,8 @@ class Application(ctk.CTk):
         self.geometry("1380x880")
         self.minsize(960, 680)
         self.configure(fg_color=self.PALETTE["BG_CANVAS"])
+
+        self.current_frame:View | None = None
 
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=0)
@@ -134,241 +138,65 @@ class Application(ctk.CTk):
         self.main_wrapper.grid_rowconfigure(0, weight=1)
         self.main_wrapper.grid_columnconfigure(0, weight=1)
 
-        self.overview = Overview(self.main_wrapper)
-        self.overview.grid_propagate(False)
-
-        self.add_transition = AddTransaction(self.main_wrapper)
-        self.add_transition.grid_propagate(False)
-
-        self.transactions = Transactions(self.main_wrapper)
-        self.transactions.grid_propagate(False)
-
-        self.budgets = Budgets(self.main_wrapper)
-        self.budgets.grid_propagate(False)
-
-        self.edit_budgets = EditBudgets(self.main_wrapper)
-        self.edit_budgets.grid_propagate(False)
-
         Application.views = {
-            "overview": self.overview,
-            "add_transaction": self.add_transition,
-            "transactions": self.transactions,
-            "budgets": self.budgets,
-            "edit_budgets": self.edit_budgets,
+            "overview": Overview,
+            "add_transaction": AddTransaction,
+            "transactions": Transactions,
+            "budgets": Budgets,
+            "edit_budgets": EditBudgets,
         }
-
-        self.main_wrapper.bind("<Configure>", self._enforce_max_width)
-
-    def _sync_dimensions(self, width: int, height: int):
-        """Apply width and height bounds to registered views."""
-        target_w = max(min(width, self.MAX_MAIN_WIDTH), 1)
-        target_h = max(height, 1)
-        for view in self.views.values():
-            view.configure(width=target_w, height=target_h)
 
     @classmethod
     def switch_view(cls, target_view: str):
         """Switch the main area to display the view with the given name and hide other views."""
         if target_view not in cls.views:
             return
-
-
         
-        for view_name, frame in cls.views.items():
-            if view_name != target_view:
-                frame.grid_forget()
-        target_frame = cls.views[target_view]
-        target_frame.grid(row=0, column=0, sticky="nsew")
-        if target_view == "transactions":
-            cls.views[target_view].refresh_transactions()
 
-    @classmethod
-    def _make_card(cls, parent, dark=False, **kwargs):
-        """Create a styled card container matching the application palette."""
-        return ctk.CTkFrame(
-            parent,
-            fg_color=cls.PALETTE["BG_DARK_CARD"] if dark else cls.PALETTE["BG_CARD"],
-            corner_radius=14,
-            border_width=0 if dark else 1,
-            border_color=cls.PALETTE["BORDER_COLOR"],
-            **kwargs,
-        )
+
+        if Application.current_view:
+            if isinstance(Application.current_view,Application.views[target_view]):
+                 return
+            del Application.current_view
+        target_frame:View = cls.views[target_view](cls._instance.main_wrapper)
+        Application.current_view = target_frame
+        target_frame.grid_propagate(False)
+        target_frame.grid(row=0, column=0, sticky="nsew")
 
     @classmethod
     def load_transactions(cls):
         """Load transactions from storage into the memory cache."""
         cls.transactions = storage.get_transactions()
 
-    def _enforce_max_width(self, event):
-        """Constrain active view width to MAX_MAIN_WIDTH while matching height."""
-        self._sync_dimensions(event.width, event.height)
+class View(ctk.CTkFrame):
 
-class Overview(ctk.CTkFrame):
-    """Main overview dashboard frame displaying KPIs, charts, and summaries."""
+    def _validate_numeric_keystroke(self, proposed_text: str) -> bool:
+        """Allow empty string, digits, and at most one decimal point."""
+        if proposed_text == "":
+            return True
+        if proposed_text.count(".") > 1:
+            return False
+        cleaned = proposed_text.replace(".", "", 1)
+        return cleaned.isdigit()
 
-    def __init__(self, parent, palette=Application.PALETTE):
-        """Initialize the overview dashboard frame."""
-        super().__init__(parent, fg_color="transparent")
-        self.palette = palette
+    def _attach_numeric_guard(self, entry: ctk.CTkEntry):
+        """Block non-numeric keystrokes while allowing decimal input and deletion."""
+        vcmd = (self.register(self._validate_numeric_keystroke), "%P")
+        entry.configure(validate="key", validatecommand=vcmd)
 
-        self.grid_rowconfigure(0, weight=0)
-        self.grid_rowconfigure(1, weight=0)
-        self.grid_rowconfigure(2, weight=3)
-        self.grid_rowconfigure(3, weight=3)
-        self.grid_columnconfigure(0, weight=1)
 
-        self._build_header_row()
-        self._build_kpi_row()
-        self._build_middle_row()
-        self._build_bottom_row()
+    def _make_card(self, parent, dark=False, **kwargs):
+        """Create a styled card container matching the application palette."""
+        return ctk.CTkFrame(
+            parent,
+            fg_color=self.palette["BG_DARK_CARD"] if dark else self.palette["BG_CARD"],
+            corner_radius=14,
+            border_width=0 if dark else 1,
+            border_color=self.palette["BORDER_COLOR"],
+            **kwargs,
+        )
 
-    def _build_header_row(self):
-        """Render the greeting header, month selector, and add transaction CTA."""
-        header = ctk.CTkFrame(self, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", padx=28, pady=(24, 16))
-        header.grid_columnconfigure(0, weight=1)
-
-        left = ctk.CTkFrame(header, fg_color="transparent")
-        left.grid(row=0, column=0, sticky="w")
-
-        ctk.CTkLabel(
-            left,
-            text="YOUR MONEY, AT A GLANCE",
-            text_color=self.palette["TEXT_MUTED"],
-            font=("", 10, "bold"),
-        ).pack(anchor="w")
-
-        ctk.CTkLabel(
-            left,
-            text="A little clarity. A lot of possibility.",
-            text_color=self.palette["TEXT_PRIMARY"],
-            font=("", 22, "bold"),
-        ).pack(anchor="w", pady=(2, 2))
-
-        ctk.CTkLabel(
-            left,
-            text="Let's make your money work for you.",
-            text_color=self.palette["TEXT_MUTED"],
-            font=("", 12),
-        ).pack(anchor="w")
-
-        right = ctk.CTkFrame(header, fg_color="transparent")
-        right.grid(row=0, column=1, sticky="se")
-        month_year = get_month_year(Application.transactions)
-        ctk.CTkOptionMenu(
-            right,
-            values=month_year if month_year else [get_current_month_year()] ,
-            width=150,
-            height=34,
-            fg_color=self.palette["BG_CARD"],
-            button_color=self.palette["BG_CARD"],
-            button_hover_color="#F3F4F6",
-            text_color=self.palette["TEXT_PRIMARY"],
-        ).pack(side="left", padx=(0, 10))
-
-    def _build_kpi_row(self):
-        """Render the four summary metric cards across the top row."""
-        kpi_row = ctk.CTkFrame(self, fg_color="transparent")
-        kpi_row.grid(row=1, column=0, sticky="ew", padx=22, pady=(0, 10))
-
-        cards = [
-            ("Total balance", f"{logic.calculate_current_balance(400000,Application.transactions)} MMK", True),
-            ("Income", f"{logic.calculate_total_income(Application.transactions)} MMK", False),
-            ("Expenses", f"{logic.calculate_total_expenses(Application.transactions)} MMK", False),
-            ("Net savings", f"{logic.calculate_net_cash_flow(Application.transactions)} MMK", False),
-        ]
-
-        for col, (title, value, is_dark) in enumerate(cards):
-            kpi_row.grid_columnconfigure(col, weight=1, uniform="kpi")
-            card = Application._make_card(kpi_row, dark=is_dark, height=115)
-            card.grid(row=0, column=col, sticky="nsew", padx=6)
-            card.pack_propagate(False)
-
-            ctk.CTkLabel(
-                card,
-                text=title,
-                text_color="#D1FAE5" if is_dark else self.palette["TEXT_MUTED"],
-                font=("", 12),
-            ).pack(anchor="w", padx=18, pady=(16, 4))
-
-            ctk.CTkLabel(
-                card,
-                text=value,
-                text_color="#FFFFFF" if is_dark else self.palette["TEXT_PRIMARY"],
-                font=("", 22, "bold"),
-            ).pack(anchor="w", padx=18)
-
-    def _build_middle_row(self):
-        """Render the cash flow and category breakdown chart cards."""
-        mid = ctk.CTkFrame(self, fg_color="transparent")
-        mid.grid(row=2, column=0, sticky="nsew", padx=22, pady=8)
-        mid.grid_rowconfigure(0, weight=1)
-        mid.grid_columnconfigure(0, weight=2, uniform="split")
-        mid.grid_columnconfigure(1, weight=1, uniform="split")
-
-        left_card = Application._make_card(mid)
-        left_card.grid(row=0, column=0, sticky="nsew", padx=6)
-        ctk.CTkLabel(
-            left_card,
-            text="Cash flow",
-            text_color=self.palette["TEXT_PRIMARY"],
-            font=("", 15, "bold"),
-        ).pack(anchor="w", padx=20, pady=(16, 2))
-        ctk.CTkLabel(
-            left_card,
-            text="[Bar Chart Area — 2/3 width]",
-            text_color=self.palette["TEXT_MUTED"],
-        ).pack(expand=True)
-
-        right_card = Application._make_card(mid)
-        right_card.grid(row=0, column=1, sticky="nsew", padx=6)
-        ctk.CTkLabel(
-            right_card,
-            text="Where it goes",
-            text_color=self.palette["TEXT_PRIMARY"],
-            font=("", 15, "bold"),
-        ).pack(anchor="w", padx=20, pady=(16, 2))
-        ctk.CTkLabel(
-            right_card,
-            text="[Donut Breakdown — 1/3 width]",
-            text_color=self.palette["TEXT_MUTED"],
-        ).pack(expand=True)
-
-    def _build_bottom_row(self):
-        """Render the recent transactions list and savings goals cards."""
-        bot = ctk.CTkFrame(self, fg_color="transparent")
-        bot.grid(row=3, column=0, sticky="nsew", padx=22, pady=(8, 22))
-        bot.grid_rowconfigure(0, weight=1)
-        bot.grid_columnconfigure(0, weight=2, uniform="split")
-        bot.grid_columnconfigure(1, weight=1, uniform="split")
-
-        left_card = Application._make_card(bot)
-        left_card.grid(row=0, column=0, sticky="nsew", padx=6)
-        ctk.CTkLabel(
-            left_card,
-            text="Recent transactions",
-            text_color=self.palette["TEXT_PRIMARY"],
-            font=("", 15, "bold"),
-        ).pack(anchor="w", padx=20, pady=(16, 2))
-
-        # for idx,transaction in enumerate(Application.transactions):
-        #     self._render_row(left_card,idx,transaction)
-
-        right_card = Application._make_card(bot)
-        right_card.grid(row=0, column=1, sticky="nsew", padx=6)
-        ctk.CTkLabel(
-            right_card,
-            text="A little closer to your goals",
-            text_color=self.palette["TEXT_PRIMARY"],
-            font=("", 15, "bold"),
-        ).pack(anchor="w", padx=20, pady=(16, 2))
-        ctk.CTkLabel(
-            right_card,
-            text="[Progress Bars — 1/3 width]",
-            text_color=self.palette["TEXT_MUTED"],
-        ).pack(expand=True)
-
-    def _render_row(self,parent, idx: int, transactions: dict):
+    def _render_transaction_row(self,parent, idx: int, transactions: dict):
         """Render a single transaction row inside the scrollable table body."""
         row = ctk.CTkFrame(parent, fg_color="transparent")
         row.grid(row=idx * 2, column=0, sticky="ew", padx=6, pady=4)
@@ -451,7 +279,156 @@ class Overview(ctk.CTkFrame):
             parent, height=1, fg_color=self.palette["BORDER_COLOR"]
         ).grid(row=idx * 2 + 1, column=0, sticky="ew", padx=6)
 
-class AddTransaction(ctk.CTkFrame):
+class Overview(View):
+    """Main overview dashboard frame displaying KPIs, charts, and summaries."""
+
+    def __init__(self, parent, palette=Application.PALETTE):
+        """Initialize the overview dashboard frame."""
+        super().__init__(parent, fg_color="transparent")
+        self.palette = palette
+
+        self.grid_rowconfigure(0, weight=0)
+        self.grid_rowconfigure(1, weight=0)
+        self.grid_rowconfigure(2, weight=3)
+        self.grid_rowconfigure(3, weight=3)
+        self.grid_columnconfigure(0, weight=1)
+
+        self._build_header_row()
+        self._build_kpi_row()
+        self._build_middle_row()
+        self._build_bottom_row()
+
+    def refresh(self):
+        self._build_header_row()
+        self._build_kpi_row()
+        self._build_middle_row()
+        self._build_bottom_row()
+
+    def _build_header_row(self):
+        """Render the greeting header, month selector, and add transaction CTA."""
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.grid(row=0, column=0, sticky="ew", padx=28, pady=(24, 16))
+        header.grid_columnconfigure(0, weight=1)
+
+        left = ctk.CTkFrame(header, fg_color="transparent")
+        left.grid(row=0, column=0, sticky="w")
+
+        ctk.CTkLabel(
+            left,
+            text="YOUR MONEY, AT A GLANCE",
+            text_color=self.palette["TEXT_MUTED"],
+            font=("", 10, "bold"),
+        ).pack(anchor="w")
+
+        ctk.CTkLabel(
+            left,
+            text="A little clarity. A lot of possibility.",
+            text_color=self.palette["TEXT_PRIMARY"],
+            font=("", 22, "bold"),
+        ).pack(anchor="w", pady=(2, 2))
+
+        ctk.CTkLabel(
+            left,
+            text="Let's make your money work for you.",
+            text_color=self.palette["TEXT_MUTED"],
+            font=("", 12),
+        ).pack(anchor="w")
+
+    def _build_kpi_row(self):
+        """Render the four summary metric cards across the top row."""
+        kpi_row = ctk.CTkFrame(self, fg_color="transparent")
+        kpi_row.grid(row=1, column=0, sticky="ew", padx=22, pady=(0, 10))
+
+        cards = [
+            ("Total balance", f"{logic.calculate_current_balance(400000,Application.transactions)} MMK", True),  
+            ("Income", f"{logic.calculate_total_income(Application.transactions)} MMK", False),
+            ("Expenses", f"{logic.calculate_total_expenses(Application.transactions)} MMK", False),
+            ("Net savings", f"{logic.calculate_net_cash_flow(Application.transactions)} MMK", False),
+        ] #TODO: Chnage the budget
+
+        for col, (title, value, is_dark) in enumerate(cards):
+            kpi_row.grid_columnconfigure(col, weight=1, uniform="kpi")
+            card = self._make_card(kpi_row, dark=is_dark, height=115)
+            card.grid(row=0, column=col, sticky="nsew", padx=6)
+            card.pack_propagate(False)
+
+            ctk.CTkLabel(
+                card,
+                text=title,
+                text_color="#D1FAE5" if is_dark else self.palette["TEXT_MUTED"],
+                font=("", 12),
+            ).pack(anchor="w", padx=18, pady=(16, 4))
+
+            ctk.CTkLabel(
+                card,
+                text=value,
+                text_color="#FFFFFF" if is_dark else self.palette["TEXT_PRIMARY"],
+                font=("", 22, "bold"),
+            ).pack(anchor="w", padx=18)
+
+    def _build_middle_row(self):
+        """Render the cash flow and category breakdown chart cards."""
+        mid = ctk.CTkFrame(self, fg_color="transparent")
+        mid.grid(row=2, column=0, sticky="nsew", padx=22, pady=8)
+        mid.grid_rowconfigure(0, weight=1)
+        mid.grid_columnconfigure(0, weight=2, uniform="split")
+        mid.grid_columnconfigure(1, weight=1, uniform="split")
+
+        left_card = self._make_card(mid)
+        left_card.grid(row=0, column=0, sticky="nsew", padx=6)
+        ctk.CTkLabel(
+            left_card,
+            text="Cash flow",
+            text_color=self.palette["TEXT_PRIMARY"],
+            font=("", 15, "bold"),
+        ).pack(anchor="w", padx=20, pady=(16, 2))
+
+
+        right_card = self._make_card(mid)
+        right_card.grid(row=0, column=1, sticky="nsew", padx=6)
+        ctk.CTkLabel(
+            right_card,
+            text="Where it goes",
+            text_color=self.palette["TEXT_PRIMARY"],
+            font=("", 15, "bold"),
+        ).pack(anchor="w", padx=20, pady=(16, 2))
+
+    def _build_bottom_row(self):
+        """Render the recent transactions list and savings goals cards."""
+        bot = ctk.CTkFrame(self, fg_color="transparent")
+        bot.grid(row=3, column=0, sticky="nsew", padx=22, pady=(8, 22))
+        bot.grid_rowconfigure(0, weight=1)
+        bot.grid_columnconfigure(0, weight=2, uniform="split")
+        bot.grid_columnconfigure(1, weight=1, uniform="split")
+
+        left_card = self._make_card(bot)
+        left_card.grid(row=0, column=0, sticky="nsew", padx=6)
+        left_card.grid_rowconfigure(0, weight=0)
+        left_card.grid_rowconfigure(1, weight=1)
+        left_card.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            left_card,
+            text="Recent transactions",
+            text_color=self.palette["TEXT_PRIMARY"],
+            font=("", 15, "bold"),
+        ).grid(row=0, column=0, sticky="w", padx=20, pady=(16, 6))
+        transactions_table = CTkXYFrame(left_card, fg_color="transparent")
+        transactions_table.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 12))
+        transactions_table.grid_columnconfigure(0, weight=1)
+
+        for idx,transaction in enumerate(Application.transactions):
+            self._render_transaction_row(transactions_table,idx,transaction)
+
+        right_card = self._make_card(bot)
+        right_card.grid(row=0, column=1, sticky="nsew", padx=6)
+        ctk.CTkLabel(
+            right_card,
+            text="A little closer to your goals",
+            text_color=self.palette["TEXT_PRIMARY"],
+            font=("", 15, "bold"),
+        ).pack(anchor="w", padx=20, pady=(16, 2))
+
+class AddTransaction(View):
     """UI form view for creating a new financial transaction."""
 
     def __init__(self, parent, palette=Application.PALETTE):
@@ -460,6 +437,10 @@ class AddTransaction(ctk.CTkFrame):
         self.palette = palette
 
         self.grid_columnconfigure(0, weight=1)
+        self._build_header()
+        self._build_form_card()
+
+    def refresh(self):
         self._build_header()
         self._build_form_card()
 
@@ -701,21 +682,8 @@ class AddTransaction(ctk.CTkFrame):
         }
         self._on_submit(payload)
 
-    def _validate_numeric_keystroke(self, proposed_text: str) -> bool:
-        """Allow empty string, digits, and at most one decimal point."""
-        if proposed_text == "":
-            return True
-        if proposed_text.count(".") > 1:
-            return False
-        cleaned = proposed_text.replace(".", "", 1)
-        return cleaned.isdigit()
 
-    def _attach_numeric_guard(self, entry: ctk.CTkEntry):
-        """Block non-numeric keystrokes while allowing decimal input and deletion."""
-        vcmd = (self.register(self._validate_numeric_keystroke), "%P")
-        entry.configure(validate="key", validatecommand=vcmd)
-
-class Transactions(ctk.CTkFrame):
+class Transactions(View):
     """Transactions list view with summary cards, filters, and table."""
 
     def __init__(self, parent, palette=Application.PALETTE):
@@ -733,7 +701,13 @@ class Transactions(ctk.CTkFrame):
         self._build_summary_cards()
         self._build_filter_bar()
         self._build_transactions_table_card()
-        self.refresh_transactions()
+        self.refresh_transactions() #TODO: Need to figure how to build the view
+
+    def refresh(self):
+        self._build_header()
+        self._build_summary_cards()
+        self._build_filter_bar()
+        self._build_transactions_table_card()
 
     def _build_header(self):
         """Render the workspace label, title, subtitle, and add transaction CTA."""
@@ -783,13 +757,13 @@ class Transactions(ctk.CTkFrame):
         row.grid_columnconfigure((0, 1, 2), weight=1, uniform="tx_kpi")
 
         cards = [
-            ("Money in", "8,450 MMK", "+8.2% vs. last month", False),
-            ("Money out", "3,280 MMK", "-4.1% vs. last month", False),
-            ("Net cash flow", "5,170 MMK", "61.2% of your income saved", True),
+            ("Money in", f"{logic.calculate_total_income(Application.transactions)} MMK", "", False),
+            ("Money out", f"{logic.calculate_total_expenses(Application.transactions)} MMK", "", False),
+            ("Net cash flow", f"{logic.calculate_net_cash_flow(Application.transactions)} MMK", "", True),
         ]
 
         for col, (title, value, sub, is_dark) in enumerate(cards):
-            card = Application._make_card(row, dark=is_dark, height=120)
+            card = self._make_card(row, dark=is_dark, height=120)
             card.grid(row=0, column=col, sticky="nsew", padx=6)
             card.pack_propagate(False)
 
@@ -849,22 +823,7 @@ class Transactions(ctk.CTkFrame):
         self.category_filter = ctk.CTkOptionMenu(
             bar,
             values=[
-                "All categories",
-                "Housing",
-                "Food and Dining",
-                "Transportation",
-                "Shopping",
-                "Bills and Utilities",
-                "Health and Wellness",
-                "Entertainment and Subscriptions",
-                "Travel",
-                "Savings and goals",
-                "Salary",
-                "Freelance / Side Income",
-                "Investments",
-                "Gift / Refunds",
-                "Other",
-            ],
+                "All categories"]+INCOME_CATEGORIES+EXPENSE_CATEGORIES,
             width=165,
             height=36,
             corner_radius=8,
@@ -876,9 +835,11 @@ class Transactions(ctk.CTkFrame):
         )
         self.category_filter.grid(row=0, column=2, padx=(0, 10))
 
+        months = get_month_year(Application.transactions)
+
         self.month_filter = ctk.CTkOptionMenu(
             bar,
-            values=["November 2026", "October 2026", "September 2026"],
+            values=months + ["October 2026"] if months else [get_current_month_year()],
             width=155,
             height=36,
             corner_radius=8,
@@ -921,7 +882,7 @@ class Transactions(ctk.CTkFrame):
 
     def _build_transactions_table_card(self):
         """Render the All transactions card with column headers and rows."""
-        card = Application._make_card(self)
+        card = self._make_card(self)
         card.grid(row=3, column=0, sticky="nsew", padx=28, pady=(0, 24))
         card.grid_rowconfigure(2, weight=1)
         card.grid_columnconfigure(0, weight=1)
@@ -962,31 +923,15 @@ class Transactions(ctk.CTkFrame):
         )
         self.sort_btn.grid(row=0, column=1, sticky="e")
 
-        headers = ["Transaction", "Category", "Type", "Date", "Amount",""]
-        col_widths = [240, 150, 100, 120, 130, 36]
-        header_row = ctk.CTkFrame(card, fg_color="transparent")
-        header_row.grid(row=1, column=0, sticky="ew", padx=20, pady=(4, 6))
-
-        for idx, (text, w) in enumerate(zip(headers, col_widths)):
-            anchor = "e" if idx == len(headers) - 1 else "w"
-            ctk.CTkLabel(
-                header_row,
-                text=text,
-                width=w,
-                anchor=anchor,
-                text_color=self.palette["TEXT_MUTED"],
-                font=("", 11, "bold"),
-            ).grid(row=0, column=idx, sticky="ew" if idx == 0 else "")
-
-        ctk.CTkFrame(card, height=1, fg_color=self.palette["BORDER_COLOR"]).grid(
-            row=1, column=0, sticky="sew", padx=16
-        )
-
-        self.rows_container = ctk.CTkScrollableFrame(
+        self.rows_container = CTkXYFrame(
             card, fg_color="transparent", corner_radius=0
         )
         self.rows_container.grid(row=2, column=0, sticky="nsew", padx=12, pady=(4, 12))
         self.rows_container.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkFrame(card, height=1, fg_color=self.palette["BORDER_COLOR"]).grid(
+            row=1, column=0, sticky="sew", padx=16
+        )
 
     def _confirm_delete(self, tx: dict):
         """Ask for confirmation before deleting a transaction."""
@@ -1034,9 +979,10 @@ class Transactions(ctk.CTkFrame):
         query = self.search_entry.get().strip().lower()
         selected_type = self.type_filter.get().lower()
         selected_category = self.category_filter.get()
+        selected_month = self.month_filter.get()
 
         filtered = []
-        for tx in Application.transactions:
+        for tx in logic.filter_transactions_by_month(Application.transactions,str_to_int_year_month(selected_month)):
             merchant = str(tx.get("merchant", ""))
             category = str(tx.get("category", ""))
             tx_type = str(tx.get("type", "expense")).lower()
@@ -1055,94 +1001,10 @@ class Transactions(ctk.CTkFrame):
         self.count_label.configure(text=f"{len(filtered)} transactions")
 
         for row_idx, tx in enumerate(filtered):
-            self._render_row(self.rows_container,row_idx, tx)
+            self._render_transaction_row(self.rows_container,row_idx, tx)
 
-    def _render_row(self,parent, idx: int, transactions: dict):
-        """Render a single transaction row inside the scrollable table body."""
-        row = ctk.CTkFrame(parent, fg_color="transparent")
-        row.grid(row=idx * 2, column=0, sticky="ew", padx=6, pady=4)
-
-        merchant = str(transactions.get("merchant", "Untitled"))
-        category = str(transactions.get("category", "Other"))
-        transaction_type = str(transactions.get("type", "expense")).capitalize()
-        date_str = str(transactions.get("date", ""))
-        raw_amount = transactions.get("amount", 0)
-
-        try:
-            amount_val = float(raw_amount)
-        except (TypeError, ValueError):
-            amount_val = 0.0
-
-        is_income = transaction_type.lower() == "income"
-        sign = "+" if is_income else "-"
-        amount_text = f"{sign}{amount_val:,.2f} MMK"
-
-        ctk.CTkLabel(
-            row,
-            text=merchant,
-            width=240,
-            anchor="w",
-            text_color=self.palette["TEXT_PRIMARY"],
-            font=("", 12, "bold"),
-        ).grid(row=0, column=0, sticky="w")
-
-        ctk.CTkLabel(
-            row,
-            text=category,
-            width=150,
-            anchor="w",
-            text_color=self.palette["TEXT_MUTED"],
-            font=("", 12),
-        ).grid(row=0, column=1, sticky="w")
-
-        ctk.CTkLabel(
-            row,
-            text=transaction_type,
-            width=100,
-            anchor="w",
-            text_color="#15803D" if is_income else self.palette["TEXT_MUTED"],
-            font=("", 12, "bold" if is_income else "normal"),
-        ).grid(row=0, column=2, sticky="w")
-
-        ctk.CTkLabel(
-            row,
-            text=date_str,
-            width=120,
-            anchor="w",
-            text_color=self.palette["TEXT_MUTED"],
-            font=("", 12),
-        ).grid(row=0, column=3, sticky="w")
-
-        ctk.CTkLabel(
-            row,
-            text=amount_text,
-            width=130,
-            anchor="e",
-            text_color="#15803D" if is_income else self.palette["TEXT_PRIMARY"],
-            font=("", 12, "bold"),
-        ).grid(row=0, column=4, sticky="e")
-
-        delete_btn = ctk.CTkButton(
-            row,
-            text="🗑",
-            width=30,
-            height=28,
-            corner_radius=6,
-            fg_color="transparent",
-            hover_color="#FEE2E2",
-            text_color="#DC2626",
-            font=("", 20),
-            command=lambda record=transactions: self._confirm_delete(record),
-        )
-        delete_btn.grid(row=0, column=5, padx=(8, 0), sticky="e")
-
-        ctk.CTkFrame(
-            parent, height=1, fg_color=self.palette["BORDER_COLOR"]
-        ).grid(row=idx * 2 + 1, column=0, sticky="ew", padx=6)
-
-class Budgets(ctk.CTkFrame):
+class Budgets(View):
     """Budgets view displaying monthly budget usage, remaining balance, and category cards."""
-
 
     def __init__(self, parent, palette=Application.PALETTE):
         """Initialize the budgets view."""
@@ -1158,7 +1020,9 @@ class Budgets(ctk.CTkFrame):
         self.scroll_container.grid(row=0, column=0, sticky="nsew")
         self.scroll_container.grid_columnconfigure(0, weight=1)
 
-        self.refresh_budgets()
+        self.refresh()
+
+
 
     def _build_header(self):
         """Render the workspace label, title, subtitle, and edit budget CTA."""
@@ -1208,7 +1072,7 @@ class Budgets(ctk.CTkFrame):
         row.grid_columnconfigure(0, weight=2, uniform="budget_top")
         row.grid_columnconfigure(1, weight=1, uniform="budget_top")
 
-        dark_card = Application._make_card(row, dark=True, height=175)
+        dark_card = self._make_card(row, dark=True, height=175)
         dark_card.grid(row=0, column=0, sticky="nsew", padx=6)
         dark_card.grid_propagate(False)
         dark_card.grid_columnconfigure(0, weight=1)
@@ -1271,7 +1135,7 @@ class Budgets(ctk.CTkFrame):
             font=("", 11),
         ).pack(side="right")
 
-        right_card = Application._make_card(row, dark=False, height=175)
+        right_card = self._make_card(row, dark=False, height=175)
         right_card.grid(row=0, column=1, sticky="nsew", padx=6)
         right_card.grid_propagate(False)
 
@@ -1350,7 +1214,7 @@ class Budgets(ctk.CTkFrame):
     def _create_category_card(self, parent, category, spent, limit, subtitle):
         
         """Build a single category budget card with progress bar and variance."""
-        card = Application._make_card(parent, dark=False, height=185)
+        card = self._make_card(parent, dark=False, height=185)
         card.grid_propagate(False)
         card.grid_columnconfigure(0,weight=1)
 
@@ -1478,7 +1342,7 @@ class Budgets(ctk.CTkFrame):
 
     def _build_rhythm_banner(self):
         """Render the bottom summary card with monthly pacing notes."""
-        banner = Application._make_card(self.scroll_container, dark=False)
+        banner = self._make_card(self.scroll_container, dark=False)
         banner.grid(row=4, column=0, sticky="ew", padx=28, pady=(0, 24))
 
         ctk.CTkLabel(
@@ -1522,7 +1386,7 @@ class Budgets(ctk.CTkFrame):
         }
         return monthly_limit, limits
 
-    def refresh_budgets(self):
+    def refresh(self):
         """Rebuild all budget cards from storage and cached transactions."""
         for widget in self.scroll_container.winfo_children():
             widget.destroy()
@@ -1549,7 +1413,7 @@ class Budgets(ctk.CTkFrame):
         self._build_category_budgets_section(spent_by_cat, cat_limits)
         self._build_rhythm_banner()
 
-class EditBudgets(ctk.CTkFrame):
+class EditBudgets(View):
     """View for editing the overall monthly budget and per-category limits."""
 
     DEFAULT_CATEGORIES = [
@@ -1574,7 +1438,10 @@ class EditBudgets(ctk.CTkFrame):
         )
         self.scroll_container.grid(row=0, column=0, sticky="nsew")
         self.scroll_container.grid_columnconfigure(0, weight=1)
+        self.refresh()
 
+
+    def refresh(self):
         self._build_header()
         self._build_form_card()
         self.load_values()
@@ -1620,7 +1487,7 @@ class EditBudgets(ctk.CTkFrame):
 
     def _build_form_card(self):
         """Render inputs for monthly budget, optional initial balance, and categories."""
-        card = Application._make_card(self.scroll_container, dark=False)
+        card = self._make_card(self.scroll_container, dark=False)
         card.grid(row=1, column=0, sticky="ew", padx=28, pady=(0, 24))
         card.grid_columnconfigure((0, 1), weight=1)
 
@@ -1817,18 +1684,6 @@ class EditBudgets(ctk.CTkFrame):
 
         Application.switch_view("budgets")
 
-    def _validate_numeric_keystroke(self, proposed_text: str) -> bool:
-        """Allow empty string, digits, and at most one decimal point."""
-        if proposed_text == "":
-            return True
-        if proposed_text.count(".") > 1:
-            return False
-        return proposed_text.replace(".", "", 1).isdigit()
-
-    def _attach_numeric_guard(self, entry: ctk.CTkEntry):
-        """Block non-numeric keystrokes on an entry widget."""
-        vcmd = (self.register(self._validate_numeric_keystroke), "%P")
-        entry.configure(validate="key", validatecommand=vcmd)
 
 if __name__ == "__main__":
     Application().mainloop()

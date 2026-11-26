@@ -1,5 +1,3 @@
-import scripts.logic as lg
-import scripts.storage as storage
 import scripts.ui as ui
 
 def main():

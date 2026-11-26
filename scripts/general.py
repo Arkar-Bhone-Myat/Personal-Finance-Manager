@@ -32,6 +32,11 @@ BUDGET_CATEGORIES = {
     "Other": "For everything in between.",
 }
 
+def str_to_int_year_month(date_str: str) -> str:
+    """Convert a 'Month YYYY' string (e.g., 'November 2026') to 'YYYY-MM'."""
+    parsed = datetime.strptime(date_str.strip(), "%B %Y")
+    return parsed.strftime("%Y-%m")
+
 def get_month_year(transactions: list[dict], date_format: str = "%y-%m-%d") -> list[str]:
     return [
         datetime.strptime(tx["date"].strip(), date_format).strftime("%B %Y")

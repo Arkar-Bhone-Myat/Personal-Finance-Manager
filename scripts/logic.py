@@ -27,7 +27,7 @@ def filter_transactions_by_month(
     Returns:
         Filtered list of transaction dictionaries matching ``year_month``.
     """
-    pass
+    return []
 
 
 def filter_transactions_by_date_range(
@@ -67,31 +67,31 @@ def get_recent_transactions(
 # ---------------------------------------------------------------------------
 
 
-def calculate_total_income(transactions: list[dict[str, Any]]) -> float:
+def calculate_total_income(transactions: list[dict[str, Any]]) -> int:
     """Sum the amounts of all ``"income"`` transactions.
 
     Args:
         transactions: List of transaction dictionaries.
 
     Returns:
-        Total income rounded to 2 decimal places (``0.0`` if none).
+        Total income rounded to 2 decimal places (``0`` if none).
     """
-    pass
+    return 0
 
 
-def calculate_total_expenses(transactions: list[dict[str, Any]]) -> float:
+def calculate_total_expenses(transactions: list[dict[str, Any]]) -> int:
     """Sum the amounts of all ``"expense"`` transactions.
 
     Args:
         transactions: List of transaction dictionaries.
 
     Returns:
-        Total expenses rounded to 2 decimal places (``0.0`` if none).
+        Total expenses rounded to 2 decimal places (``0`` if none).
     """
-    pass
+    return 0
 
 
-def calculate_net_cash_flow(transactions: list[dict[str, Any]]) -> float:
+def calculate_net_cash_flow(transactions: list[dict[str, Any]]) -> int:
     """Calculate net cash flow (total income minus total expenses).
 
     Args:
@@ -100,12 +100,12 @@ def calculate_net_cash_flow(transactions: list[dict[str, Any]]) -> float:
     Returns:
         Net cash flow rounded to 2 decimal places.
     """
-    pass
+    return 0
 
 
 def calculate_current_balance(
     initial_balance: float, transactions: list[dict[str, Any]]
-) -> float:
+) -> int:
     """Calculate current account balance from an initial balance and transactions.
 
     Adds all ``"income"`` amounts and subtracts all ``"expense"`` amounts from
@@ -118,7 +118,7 @@ def calculate_current_balance(
     Returns:
         Current balance rounded to 2 decimal places.
     """
-    pass
+    return 0
 
 
 def calculate_savings_rate(income: float, expenses: float) -> float:
